@@ -1,8 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { PlusIcon, PaperClipIcon, FaceSmileIcon, PaperAirplaneIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PaperClipIcon, FaceSmileIcon, PaperAirplaneIcon, XMarkIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { PaperAirplaneIcon as PaperAirplaneIconSolid } from '@heroicons/react/24/solid';
 import EmojiPicker from 'emoji-picker-react';
-import { supabase, sendMessage, fetchMessages, uploadChatFile, blockUser, unblockUser, isUserBlocked, deleteAllMessagesWithUser } from './supabaseClient';
+import { supabase, sendMessage, fetchMessages, uploadChatFile, blockUser, unblockUser, isUserBlocked, deleteAllMessagesWithUser, getProfileById } from './supabaseClient';
+
+// Utility to generate a unique pastel background and soft text color from a string (e.g., user id or name)
+function getPastelColors(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  const pastelBg = `hsl(${hue}, 70%, 85%)`;
+  const pastelText = `hsl(${hue}, 40%, 45%)`;
+  return { pastelBg, pastelText };
+}
 
 const Chat = ({ selectedUser, user }) => {
   const [search, setSearch] = useState('');
@@ -22,6 +34,8 @@ const Chat = ({ selectedUser, user }) => {
   const messagesEndRef = useRef(null);
   const [isBlocked, setIsBlocked] = useState(false);
   const [isBlockedBy, setIsBlockedBy] = useState(false);
+  const notificationAudioRef = useRef(null);
+  const [drawerProfile, setDrawerProfile] = useState(null);
 
   // Helper to determine if a user is online
   function isUserOnline(lastSeen) {
@@ -117,6 +131,11 @@ const Chat = ({ selectedUser, user }) => {
             setMessages(prev => {
               // Avoid duplicates
               if (prev.some(m => m.id === msg.id)) return prev;
+              // Play notification sound if message is from other user
+              if (msg.sender_id !== user.id && notificationAudioRef.current) {
+                notificationAudioRef.current.currentTime = 0;
+                notificationAudioRef.current.play();
+              }
               return [...prev, msg].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
             });
           }
@@ -228,6 +247,19 @@ const Chat = ({ selectedUser, user }) => {
     checkBlocked();
   }, [drawerOpen, chatUser, user]);
 
+  // Fetch full profile for drawer when opened
+  useEffect(() => {
+    async function fetchDrawerProfile() {
+      if (drawerOpen && chatUser && chatUser.id) {
+        const { data } = await getProfileById(chatUser.id);
+        setDrawerProfile(data);
+      } else {
+        setDrawerProfile(null);
+      }
+    }
+    fetchDrawerProfile();
+  }, [drawerOpen, chatUser]);
+
   // Send message
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -285,6 +317,8 @@ const Chat = ({ selectedUser, user }) => {
 
   return (
     <div className="h-screen flex bg-gray-50 relative">
+      {/* Notification Sound */}
+      <audio ref={notificationAudioRef} src="/mixkit-long-pop-2358.wav" preload="auto" />
       {/* Modal for New Chat */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
@@ -323,9 +357,15 @@ const Chat = ({ selectedUser, user }) => {
                     {u.avatar_url ? (
                       <img src={u.avatar_url} alt={u.name} className="w-8 h-8 rounded-full object-cover bg-primary/10 border border-gray-100" />
                     ) : (
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-primary/10 border border-gray-100">
-                        <span className="text-xs font-bold text-primary">{(u.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}</span>
-                      </div>
+                      (() => {
+                        const initials = (u.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
+                        const { pastelBg, pastelText } = getPastelColors(u.id || u.name || 'U');
+                        return (
+                          <div style={{ background: pastelBg }} className="w-8 h-8 rounded-full flex items-center justify-center border border-gray-100">
+                            <span style={{ color: pastelText }} className="text-xs font-bold">{initials}</span>
+                          </div>
+                        );
+                      })()
                     )}
                     <span className={`absolute bottom-0 right-0 block w-2.5 h-2.5 rounded-full border-2 border-white ${isUserOnline(u.last_seen) ? 'bg-green-500' : 'bg-red-500'}`} title={isUserOnline(u.last_seen) ? 'Online' : 'Offline'} />
                   </div>
@@ -379,9 +419,15 @@ const Chat = ({ selectedUser, user }) => {
                   {c.user.avatar_url ? (
                     <img src={c.user.avatar_url} alt={c.user.name} className="w-10 h-10 rounded-full object-cover bg-primary/10 border border-gray-100" />
                   ) : (
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/10 border border-gray-100">
-                      <span className="text-sm font-bold text-primary">{(c.user.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}</span>
-                    </div>
+                    (() => {
+                      const initials = (c.user.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
+                      const { pastelBg, pastelText } = getPastelColors(c.user.id || c.user.name || 'U');
+                      return (
+                        <div style={{ background: pastelBg }} className="w-10 h-10 rounded-full flex items-center justify-center border border-gray-100">
+                          <span style={{ color: pastelText }} className="text-sm font-bold">{initials}</span>
+                        </div>
+                      );
+                    })()
                   )}
                   <span className={`absolute bottom-0 right-0 block w-3 h-3 rounded-full border-2 border-white ${isUserOnline(c.user.last_seen) ? 'bg-green-500' : 'bg-red-500'}`} title={isUserOnline(c.user.last_seen) ? 'Online' : 'Offline'} />
                 </div>
@@ -399,117 +445,143 @@ const Chat = ({ selectedUser, user }) => {
       </aside>
       {/* Chat Window Panel */}
       <main className="flex-1 flex flex-col">
-        {/* Chat Header */}
-        <div className="flex items-center gap-3 px-8 py-4 border-b border-gray-200 bg-white min-h-[72px]">
-          <button onClick={() => setDrawerOpen(true)} className="focus:outline-none">
-            <div className="relative">
-              {chatUser && chatUser.avatar_url ? (
-                <img src={chatUser.avatar_url} alt={chatUser.name} className="w-12 h-12 rounded-full object-cover bg-primary/10 border border-gray-100" />
-              ) : (
-                <div className="w-12 h-12 rounded-full flex items-center justify-center bg-primary/10">
-                  <span className="text-base font-bold text-primary">{(chatUser?.name || '?').split(' ').map(n => n[0]).join('').toUpperCase()}</span>
-                </div>
-              )}
-              <span className={`absolute bottom-0 right-0 block w-3 h-3 rounded-full border-2 border-white ${isUserOnline(chatUser?.last_seen) ? 'bg-green-500' : 'bg-red-500'}`} title={isUserOnline(chatUser?.last_seen) ? 'Online' : 'Offline'} />
-            </div>
-          </button>
-          <span className="font-semibold text-gray-900 text-base">{chatUser?.name || 'Select a chat'}</span>
-        </div>
-        {/* Chat messages area */}
-        {(isBlocked || isBlockedBy) ? (
-          <div className="flex-1 flex items-center justify-center text-red-500 font-semibold bg-gray-50">
-            {isBlockedBy
-              ? 'You cannot send or receive messages from this user.'
-              : 'You have blocked this user. Unblock to resume messaging.'}
+        {/* If no chat is selected, show empty state */}
+        {!chatUser ? (
+          <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto mb-4 h-16 w-16 text-primary/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-4-.8L3 20l.8-3.2A7.96 7.96 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <h2 className="text-xl font-semibold text-gray-400 mb-2">No chat selected</h2>
+            <p className="text-gray-400">Select a chat from the list to start messaging.</p>
           </div>
         ) : (
           <>
-            <div className="flex-1 p-8 overflow-y-auto flex flex-col gap-2 bg-gray-50">
-              {messages.length > 0 ? (
-                messages.map(msg => (
-                  <div
-                    key={msg.id}
-                    className={`max-w-xs md:max-w-md lg:max-w-lg px-4 py-2 rounded-lg mb-2 ${msg.sender_id === user.id ? 'bg-primary text-white self-end' : 'bg-white text-gray-900 self-start border border-gray-100'}`}
-                  >
-                    <div className="flex flex-col gap-2">
-                      {msg.content && (
-                        <span>{msg.content}</span>
-                      )}
-                      {msg.file_url && (
-                        <div className="mt-2">
-                          {msg.file_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                            <img src={msg.file_url} alt="attachment" className="max-w-xs max-h-48 rounded border" />
-                          ) : msg.file_url.match(/\.pdf$/i) ? (
-                            <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">View PDF</a>
-                          ) : (
-                            <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Download Attachment</a>
+            {/* Chat Header */}
+            <div className="flex items-center gap-3 px-8 py-4 border-b border-gray-200 bg-white min-h-[72px] relative">
+              <button onClick={() => setDrawerOpen(true)} className="focus:outline-none">
+                <div className="relative">
+                  {chatUser && chatUser.avatar_url ? (
+                    <img src={chatUser.avatar_url} alt={chatUser.name} className="w-12 h-12 rounded-full object-cover bg-primary/10 border border-gray-100" />
+                  ) : (
+                    (() => {
+                      const initials = (chatUser?.name || '?').split(' ').map(n => n[0]).join('').toUpperCase();
+                      const { pastelBg, pastelText } = getPastelColors(chatUser?.id || chatUser?.name || '?');
+                      return (
+                        <div style={{ background: pastelBg }} className="w-12 h-12 rounded-full flex items-center justify-center">
+                          <span style={{ color: pastelText }} className="text-base font-bold">{initials}</span>
+                        </div>
+                      );
+                    })()
+                  )}
+                  <span className={`absolute bottom-0 right-0 block w-3 h-3 rounded-full border-2 border-white ${isUserOnline(chatUser?.last_seen) ? 'bg-green-500' : 'bg-red-500'}`} title={isUserOnline(chatUser?.last_seen) ? 'Online' : 'Offline'} />
+                </div>
+              </button>
+              <span className="font-semibold text-gray-900 text-base">{chatUser?.name || 'Select a chat'}</span>
+              <button
+                className="ml-auto p-2 rounded-full hover:bg-gray-100 transition absolute right-4"
+                onClick={() => setDrawerOpen(true)}
+                aria-label="User Info"
+              >
+                <InformationCircleIcon className="h-6 w-6 text-gray-400" />
+              </button>
+            </div>
+            {/* Chat messages area */}
+            {(isBlocked || isBlockedBy) ? (
+              <div className="flex-1 flex items-center justify-center text-red-500 font-semibold bg-gray-50">
+                {isBlockedBy
+                  ? 'You cannot send or receive messages from this user.'
+                  : 'You have blocked this user. Unblock to resume messaging.'}
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 p-8 overflow-y-auto flex flex-col gap-2 bg-gray-50">
+                  {messages.length > 0 ? (
+                    messages.map(msg => (
+                      <div
+                        key={msg.id}
+                        className={`max-w-xs md:max-w-md lg:max-w-lg px-4 py-2 rounded-lg mb-2 ${msg.sender_id === user.id ? 'bg-primary text-white self-end' : 'bg-white text-gray-900 self-start border border-gray-100'}`}
+                      >
+                        <div className="flex flex-col gap-2">
+                          {msg.content && (
+                            <span>{msg.content}</span>
                           )}
+                          {msg.file_url && (
+                            <div className="mt-2">
+                              {msg.file_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                                <img src={msg.file_url} alt="attachment" className="max-w-xs max-h-48 rounded border" />
+                              ) : msg.file_url.match(/\.pdf$/i) ? (
+                                <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">View PDF</a>
+                              ) : (
+                                <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className="text-primary underline">Download Attachment</a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1 text-right">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-400 text-center my-auto">No messages yet. Start the conversation!</div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+                {/* Message Input Area */}
+                <form className="flex items-center gap-2 p-4 border-t border-gray-200 bg-white relative flex-col" onSubmit={handleSendMessage}>
+                  <div className="w-full flex items-center gap-2">
+                    <div className="relative">
+                      <button type="button" className="p-2 rounded-full hover:bg-primary/10 transition" onClick={() => setShowEmoji(v => !v)} disabled={isBlocked || isBlockedBy}>
+                        <FaceSmileIcon className="h-6 w-6 text-gray-500" />
+                      </button>
+                      {showEmoji && !isBlocked && !isBlockedBy && (
+                        <div className="absolute bottom-12 left-0 z-50">
+                          <EmojiPicker onEmojiClick={handleEmojiClick} theme="light" height={350} width={300} />
                         </div>
                       )}
                     </div>
-                    <div className="text-xs text-gray-400 mt-1 text-right">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    <button type="button" className="p-2 rounded-full hover:bg-primary/10 transition" onClick={handleAttachClick} disabled={isBlocked || isBlockedBy}>
+                      <PaperClipIcon className="h-6 w-6 text-gray-500" />
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        onChange={handleFileChange}
+                        disabled={isBlocked || isBlockedBy}
+                      />
+                    </button>
+                    <input
+                      type="text"
+                      placeholder="Type your message..."
+                      value={message}
+                      onChange={e => setMessage(e.target.value)}
+                      className="flex-1 px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring focus:border-primary text-base bg-gray-50"
+                      disabled={isBlocked || isBlockedBy}
+                    />
+                    <button type="submit" className="p-2 rounded-full bg-primary hover:bg-primary/80 transition flex items-center justify-center" disabled={isBlocked || isBlockedBy}>
+                      <PaperAirplaneIconSolid className="h-6 w-6 text-white" />
+                    </button>
                   </div>
-                ))
-              ) : (
-                <div className="text-gray-400 text-center my-auto">No messages yet. Start the conversation!</div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-            {/* Message Input Area */}
-            <form className="flex items-center gap-2 p-4 border-t border-gray-200 bg-white relative flex-col" onSubmit={handleSendMessage}>
-              <div className="w-full flex items-center gap-2">
-                <div className="relative">
-                  <button type="button" className="p-2 rounded-full hover:bg-primary/10 transition" onClick={() => setShowEmoji(v => !v)} disabled={isBlocked || isBlockedBy}>
-                    <FaceSmileIcon className="h-6 w-6 text-gray-500" />
-                  </button>
-                  {showEmoji && !isBlocked && !isBlockedBy && (
-                    <div className="absolute bottom-12 left-0 z-50">
-                      <EmojiPicker onEmojiClick={handleEmojiClick} theme="light" height={350} width={300} />
+                  {file && !isBlocked && !isBlockedBy && (
+                    <div className="w-full flex items-center gap-2 mb-2">
+                      {file.type.startsWith('image/') ? (
+                        <img src={filePreview} alt="Preview" className="w-16 h-16 object-cover rounded border" />
+                      ) : file.type === 'application/pdf' ? (
+                        <div className="flex items-center gap-2 bg-gray-100 px-2 py-1 rounded border min-h-10 text-xs">
+                          <span className="text-gray-700 truncate">PDF: {file.name}</span>
+                          <a href={filePreview} target="_blank" rel="noopener noreferrer" className="text-primary underline">Preview</a>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 bg-gray-100 px-2 py-1 rounded border min-h-10 text-xs">
+                          <span className="text-gray-700 truncate">{file.name}</span>
+                        </div>
+                      )}
+                      <button type="button" className="ml-2 p-1 rounded-full bg-gray-200 hover:bg-gray-300" onClick={() => { setFile(null); setFilePreview(null); }}>
+                        <XMarkIcon className="h-4 w-4 text-gray-500" />
+                      </button>
                     </div>
                   )}
-                </div>
-                <button type="button" className="p-2 rounded-full hover:bg-primary/10 transition" onClick={handleAttachClick} disabled={isBlocked || isBlockedBy}>
-                  <PaperClipIcon className="h-6 w-6 text-gray-500" />
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    className="hidden"
-                    onChange={handleFileChange}
-                    disabled={isBlocked || isBlockedBy}
-                  />
-                </button>
-                <input
-                  type="text"
-                  placeholder="Type your message..."
-                  value={message}
-                  onChange={e => setMessage(e.target.value)}
-                  className="flex-1 px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring focus:border-primary text-base bg-gray-50"
-                  disabled={isBlocked || isBlockedBy}
-                />
-                <button type="submit" className="p-2 rounded-full bg-primary hover:bg-primary/80 transition flex items-center justify-center" disabled={isBlocked || isBlockedBy}>
-                  <PaperAirplaneIconSolid className="h-6 w-6 text-white" />
-                </button>
-              </div>
-              {file && !isBlocked && !isBlockedBy && (
-                <div className="w-full flex items-center gap-2 mb-2">
-                  {file.type.startsWith('image/') ? (
-                    <img src={filePreview} alt="Preview" className="w-16 h-16 object-cover rounded border" />
-                  ) : file.type === 'application/pdf' ? (
-                    <div className="flex items-center gap-2 bg-gray-100 px-2 py-1 rounded border min-h-10 text-xs">
-                      <span className="text-gray-700 truncate">PDF: {file.name}</span>
-                      <a href={filePreview} target="_blank" rel="noopener noreferrer" className="text-primary underline">Preview</a>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 bg-gray-100 px-2 py-1 rounded border min-h-10 text-xs">
-                      <span className="text-gray-700 truncate">{file.name}</span>
-                    </div>
-                  )}
-                  <button type="button" className="ml-2 p-1 rounded-full bg-gray-200 hover:bg-gray-300" onClick={() => { setFile(null); setFilePreview(null); }}>
-                    <XMarkIcon className="h-4 w-4 text-gray-500" />
-                  </button>
-                </div>
-              )}
-            </form>
+                </form>
+              </>
+            )}
           </>
         )}
       </main>
@@ -519,18 +591,30 @@ const Chat = ({ selectedUser, user }) => {
           <div className="absolute inset-0 bg-black bg-opacity-40" onClick={() => setDrawerOpen(false)} />
           <div className="relative w-full max-w-xs bg-white h-full shadow-lg flex flex-col p-6 animate-slide-in-right">
             <button className="absolute top-3 right-3 p-1 rounded-full hover:bg-gray-100" onClick={() => setDrawerOpen(false)} aria-label="Close">✕</button>
+            {/* User Details Section */}
             <div className="flex flex-col items-center mt-6 mb-4">
-              {chatUser && chatUser.avatar_url ? (
-                <img src={chatUser.avatar_url} alt={chatUser.name} className="w-20 h-20 rounded-full object-cover bg-primary/10 border border-gray-100 mb-2" />
+              {drawerProfile && drawerProfile.avatar_url ? (
+                <img src={drawerProfile.avatar_url} alt={drawerProfile.name} className="w-20 h-20 rounded-full object-cover bg-primary/10 border border-gray-100 mb-2" />
               ) : (
-                <div className="w-20 h-20 rounded-full flex items-center justify-center bg-primary/10 mb-2">
-                  <span className="text-2xl font-bold text-primary">{(chatUser?.name || '?').split(' ').map(n => n[0]).join('').toUpperCase()}</span>
-                </div>
+                (() => {
+                  const initials = (drawerProfile?.name || chatUser?.name || '?').split(' ').map(n => n[0]).join('').toUpperCase();
+                  const { pastelBg, pastelText } = getPastelColors(drawerProfile?.id || drawerProfile?.name || chatUser?.id || chatUser?.name || '?');
+                  return (
+                    <div style={{ background: pastelBg }} className="w-20 h-20 rounded-full flex items-center justify-center mb-2">
+                      <span style={{ color: pastelText }} className="text-2xl font-bold">{initials}</span>
+                    </div>
+                  );
+                })()
               )}
-              <div className="font-semibold text-gray-900 text-lg">{chatUser.name}</div>
-              {chatUser.username && <div className="text-xs text-gray-500">@{chatUser.username}</div>}
+              <div className="font-semibold text-gray-900 text-lg">{drawerProfile?.name || chatUser?.name}</div>
+              {drawerProfile?.username && <div className="text-xs text-gray-500">@{drawerProfile.username}</div>}
+              {drawerProfile?.university && <div className="text-xs text-gray-600 mt-1">🎓 {drawerProfile.university}</div>}
+              {drawerProfile?.bio && <div className="text-xs text-gray-500 mt-2 text-center max-w-xs">{drawerProfile.bio}</div>}
             </div>
-            <div className="flex flex-col gap-3 mt-4">
+            {/* Divider for clarity */}
+            <div className="border-t border-gray-200 my-4" />
+            {/* Action Buttons Section */}
+            <div className="flex flex-col gap-3 mt-2">
               {isBlocked ? (
                 <button className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-200 transition-colors" onClick={async () => { await unblockUser(chatUser.id); setIsBlocked(false); }}>
                   Unblock User

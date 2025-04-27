@@ -183,7 +183,7 @@ async function listAllUniversities() {
 async function getProfileById(id) {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, name, username, avatar_url')
+    .select('id, name, username, avatar_url, university, bio')
     .eq('id', id)
     .single();
   return { data, error };

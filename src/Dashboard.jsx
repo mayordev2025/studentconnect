@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { ChatBubbleLeftRightIcon, MagnifyingGlassIcon, CalendarDaysIcon, UserIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, MagnifyingGlassIcon, CalendarDaysIcon, UserIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid, MagnifyingGlassIcon as MagnifyingGlassIconSolid, CalendarDaysIcon as CalendarDaysIconSolid, UserIcon as UserIconSolid, Cog6ToothIcon as Cog6ToothIconSolid, ArrowRightOnRectangleIcon as ArrowRightOnRectangleIconSolid } from '@heroicons/react/24/solid';
 import Chat from './Chat';
 import { useNavigate } from 'react-router-dom';
-import { supabase, sendFriendRequest, acceptFriendRequest, getProfile, updateProfile, uploadAvatar, getAvatarUrl, listAllCountries, listAllUniversities, createEvent, listEvents, getProfileById, getEventAttendees, rsvpEvent, deleteEvent, cancelAttendance, updateLastSeen } from './supabaseClient';
+import { supabase, sendFriendRequest, acceptFriendRequest, getProfile, updateProfile, uploadAvatar, getAvatarUrl, listAllCountries, listAllUniversities, createEvent, listEvents, getProfileById, getEventAttendees, rsvpEvent, deleteEvent, cancelAttendance, updateLastSeen, signOut } from './supabaseClient';
+import { QRCodeSVG } from 'qrcode.react';
 
 const menuItems = [
-  { name: 'Chat', icon: ChatBubbleLeftRightIcon, key: 'chat' },
-  { name: 'Students', icon: MagnifyingGlassIcon, key: 'students' },
-  { name: 'Event', icon: CalendarDaysIcon, key: 'event' },
-  { name: 'Friends', icon: UserIcon, key: 'friends' },
+  { name: 'Chat', icon: ChatBubbleLeftRightIcon, solidIcon: ChatBubbleLeftRightIconSolid, key: 'chat' },
+  { name: 'Students', icon: MagnifyingGlassIcon, solidIcon: MagnifyingGlassIconSolid, key: 'students' },
+  { name: 'Event', icon: CalendarDaysIcon, solidIcon: CalendarDaysIconSolid, key: 'event' },
+  { name: 'Friends', icon: UserIcon, solidIcon: UserIconSolid, key: 'friends' },
 ];
 
 const bottomItems = [
-  { name: 'Settings', icon: Cog6ToothIcon, key: 'settings' },
-  { name: 'Logout', icon: ArrowRightOnRectangleIcon, key: 'logout' },
+  { name: 'Settings', icon: Cog6ToothIcon, solidIcon: Cog6ToothIconSolid, key: 'settings' },
+  { name: 'Logout', icon: ArrowRightOnRectangleIcon, solidIcon: ArrowRightOnRectangleIconSolid, key: 'logout' },
 ];
 
 const mockEvents = [
@@ -53,6 +55,20 @@ const mockEvents = [
   // Add more mock events as needed
 ];
 
+// Utility to generate a unique pastel background and soft text color from a string (e.g., user id or name)
+function getPastelColors(str) {
+  // Simple hash function
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  // HSL for pastel backgrounds
+  const hue = Math.abs(hash) % 360;
+  const pastelBg = `hsl(${hue}, 70%, 85%)`;
+  const pastelText = `hsl(${hue}, 40%, 45%)`;
+  return { pastelBg, pastelText };
+}
+
 function SettingsPage({ user, setUser }) {
   const [tab, setTab] = useState('profile');
   const [form, setForm] = useState({
@@ -79,6 +95,8 @@ function SettingsPage({ user, setUser }) {
   // Account deletion
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState(null);
+  // Modal for university field
+  const [showUniversityModal, setShowUniversityModal] = useState(false);
 
   // Populate form with user info when user is loaded
   useEffect(() => {
@@ -193,9 +211,15 @@ function SettingsPage({ user, setUser }) {
               {avatarPreview ? (
                 <img src={avatarPreview} alt="Avatar Preview" className="w-20 h-20 rounded-full object-cover" />
               ) : (
-                <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-primary">{(form.name || user?.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}</span>
-                </div>
+                (() => {
+                  const initials = (form.name || user?.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
+                  const { pastelBg, pastelText } = getPastelColors(user?.id || form.name || 'U');
+                  return (
+                    <div style={{ background: pastelBg }} className="w-20 h-20 rounded-full flex items-center justify-center">
+                      <span style={{ color: pastelText }} className="text-2xl font-bold">{initials}</span>
+                    </div>
+                  );
+                })()
               )}
               <label htmlFor="profilePicUploadSettings" className="absolute bottom-1 right-1 bg-white rounded-full p-1 shadow cursor-pointer border border-gray-200 hover:bg-gray-100 transition">
                 {/* Upload SVG icon */}
@@ -242,8 +266,9 @@ function SettingsPage({ user, setUser }) {
               type="text"
               name="university"
               value={form.university}
-              onChange={handleChange}
-              className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring focus:border-primary text-base bg-gray-50"
+              readOnly
+              onClick={() => setShowUniversityModal(true)}
+              className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring focus:border-primary text-base bg-gray-50 cursor-pointer bg-gray-100"
               required
             />
           </div>
@@ -352,6 +377,15 @@ function SettingsPage({ user, setUser }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+      {showUniversityModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-sm p-6 relative flex flex-col items-center">
+            <h4 className="text-lg font-bold text-primary mb-2">University Change</h4>
+            <p className="text-sm text-gray-600 mb-4 text-center">Contact the administrator at <a href="mailto:admin@unichat.io" className="text-primary underline">admin@unichat.io</a>.</p>
+            <button className="bg-primary text-white px-4 py-2 rounded-lg font-semibold hover:bg-primary/80 mt-2" onClick={() => setShowUniversityModal(false)}>Close</button>
+          </div>
         </div>
       )}
     </div>
@@ -485,13 +519,19 @@ function StudentPage({ openChatWithUser, user }) {
             filteredStudents.map(student => {
               const status = getFriendshipStatus(student.id);
               return (
-                <div key={student.id} className="bg-white rounded-xl shadow p-4 flex flex-col items-center text-center border border-gray-100 h-full">
+                <div key={student.id} className="bg-white rounded-xl shadow p-4 flex flex-col items-start text-left border border-gray-100 h-full">
                   {student.avatar_url ? (
                     <img src={student.avatar_url} alt={student.name} className="w-12 h-12 min-w-12 min-h-12 rounded-full object-cover mb-3 bg-primary/10 border border-gray-100" />
                   ) : (
-                    <div className="w-12 h-12 min-w-12 min-h-12 rounded-full flex items-center justify-center bg-primary/10 mb-3 border border-gray-100">
-                      <span className="text-base font-bold text-primary">{(student.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}</span>
-                    </div>
+                    (() => {
+                      const initials = (student.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
+                      const { pastelBg, pastelText } = getPastelColors(student.id || student.name || 'U');
+                      return (
+                        <div style={{ background: pastelBg }} className="w-12 h-12 min-w-12 min-h-12 rounded-full flex items-center justify-center mb-3 border border-gray-100">
+                          <span style={{ color: pastelText }} className="text-base font-bold">{initials}</span>
+                        </div>
+                      );
+                    })()
                   )}
                   <div className="font-semibold text-gray-900">{student.name}</div>
                   <div className="text-xs text-gray-500 mb-1">@{student.username}</div>
@@ -500,7 +540,7 @@ function StudentPage({ openChatWithUser, user }) {
                   <div className="flex gap-2 w-full justify-center mt-3">
                     <button className="bg-primary text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-primary/80 transition-colors" onClick={() => openChatWithUser(student)}>Message</button>
                     <button
-                      className="bg-gray-100 text-primary px-4 py-2 rounded-lg text-xs font-semibold border border-primary hover:bg-primary/10 transition-colors disabled:opacity-60"
+                      className="text-primary px-4 py-2 rounded-lg text-xs font-semibold border border-primary hover:bg-primary/10 transition-colors disabled:opacity-60"
                       disabled={status === 'self' || status === 'requested' || status === 'friends' || requesting === student.id}
                       onClick={() => handleAddFriend(student)}
                     >
@@ -667,20 +707,32 @@ function EventPage({ user }) {
           <div className="col-span-full text-center text-gray-400">No events found.</div>
         ) : (
           filteredEvents.map(event => (
-            <div key={event.id} className="bg-white rounded-xl shadow p-4 flex flex-col items-center text-center border border-gray-100 cursor-pointer hover:shadow-md transition h-full" onClick={() => setShowDetails(event.id)}>
-              <div className="font-bold text-gray-900 text-base mb-1">{event.title}</div>
-              <div className="text-xs text-gray-500 mb-1 font-medium">{event.location}</div>
-              <div className="text-xs text-gray-600 mb-2 line-clamp-2 font-medium">{event.description}</div>
-              <div className="text-xs text-gray-400 mb-1 font-medium">{event.start_time ? `${new Date(event.start_time).toLocaleDateString()} • ${new Date(event.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</div>
+            <div key={event.id} className="bg-white rounded-xl shadow p-4 flex flex-col items-start text-left border border-gray-100 cursor-pointer hover:shadow-md transition h-full" onClick={() => setShowDetails(event.id)}>
+              <h1 className="font-extrabold text-gray-900 text-xl mb-2 leading-tight uppercase">{event.title}</h1>
+              <div className="flex items-center justify-center gap-1 text-base text-gray-700 mb-1 font-semibold uppercase">
+                <MapPinIcon className="h-4 w-4 text-gray-500" />
+                <span>{event.location}</span>
+              </div>
+              <div className="text-sm text-gray-600 mb-3 line-clamp-2 font-normal capitalize">{event.description}</div>
+              <div className="flex items-center justify-center gap-1 text-sm text-gray-500 mb-2 font-medium uppercase">
+                <CalendarDaysIcon className="h-4 w-4 text-gray-500" />
+                <span>{event.start_time ? `${new Date(event.start_time).toLocaleDateString()} • ${new Date(event.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
+              </div>
               {/* Show creator */}
               {creators[event.created_by] && (
                 <div className="flex items-center gap-2 mb-2 font-medium">
                   {creators[event.created_by].avatar_url ? (
                     <img src={creators[event.created_by].avatar_url} alt={creators[event.created_by].name} className="w-6 h-6 rounded-full object-cover border border-gray-200" />
                   ) : (
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-gray-200 text-xs font-bold text-primary">
-                      {(creators[event.created_by].name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}
-                    </div>
+                    (() => {
+                      const initials = (creators[event.created_by].name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
+                      const { pastelBg, pastelText } = getPastelColors(creators[event.created_by].id || creators[event.created_by].name || 'U');
+                      return (
+                        <div style={{ background: pastelBg }} className="w-6 h-6 rounded-full flex items-center justify-center border border-gray-200 text-xs font-bold">
+                          <span style={{ color: pastelText }}>{initials}</span>
+                        </div>
+                      );
+                    })()
                   )}
                   <span className="text-xs text-gray-700">By {creators[event.created_by].name}</span>
                 </div>
@@ -744,23 +796,54 @@ function EventPage({ user }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6 relative">
             <button className="absolute top-3 right-3 p-1 rounded-full hover:bg-gray-100" onClick={() => setShowDetails(null)} aria-label="Close">✕</button>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">{selectedEvent.title}</h3>
-            <div className="text-xs text-gray-500 mb-1">{selectedEvent.location}</div>
-            <div className="text-xs text-gray-600 mb-2">{selectedEvent.description}</div>
-            <div className="text-xs text-gray-400 mb-1">{selectedEvent.start_time ? `${new Date(selectedEvent.start_time).toLocaleDateString()} • ${new Date(selectedEvent.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</div>
+            <h1 className="text-2xl font-extrabold text-gray-900 mb-2 uppercase">{selectedEvent.title}</h1>
+            <div className="flex items-center gap-1 text-base text-gray-700 mb-1 font-semibold uppercase">
+              <MapPinIcon className="h-4 w-4 text-gray-500" />
+              <span>{selectedEvent.location}</span>
+            </div>
+            <div className="text-sm text-gray-600 mb-2 capitalize">{selectedEvent.description}</div>
+            <div className="flex items-center gap-1 text-sm text-gray-500 mb-2 font-medium uppercase">
+              <CalendarDaysIcon className="h-4 w-4 text-gray-500" />
+              <span>{selectedEvent.start_time ? `${new Date(selectedEvent.start_time).toLocaleDateString()} • ${new Date(selectedEvent.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
+            </div>
             {/* Show creator in modal */}
             {creators[selectedEvent.created_by] && (
               <div className="flex items-center gap-2 mb-2">
                 {creators[selectedEvent.created_by].avatar_url ? (
                   <img src={creators[selectedEvent.created_by].avatar_url} alt={creators[selectedEvent.created_by].name} className="w-6 h-6 rounded-full object-cover border border-gray-200" />
                 ) : (
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 border border-gray-200 text-xs font-bold text-primary">
-                    {(creators[selectedEvent.created_by].name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}
-                  </div>
+                  (() => {
+                    const initials = (creators[selectedEvent.created_by].name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
+                    const { pastelBg, pastelText } = getPastelColors(creators[selectedEvent.created_by].id || creators[selectedEvent.created_by].name || 'U');
+                    return (
+                      <div style={{ background: pastelBg }} className="w-6 h-6 rounded-full flex items-center justify-center border border-gray-200 text-xs font-bold">
+                        <span style={{ color: pastelText }}>{initials}</span>
+                      </div>
+                    );
+                  })()
                 )}
                 <span className="text-xs text-gray-700">By {creators[selectedEvent.created_by].name}</span>
               </div>
             )}
+            {/* QR Code for event */}
+            <div className="flex flex-col items-center my-4">
+              <QRCodeSVG
+                value={JSON.stringify({
+                  id: selectedEvent.id,
+                  name: selectedEvent.title,
+                  description: selectedEvent.description,
+                  location: selectedEvent.location,
+                  date: selectedEvent.start_time,
+                  url: `${window.location.origin}/event/${selectedEvent.id}`
+                })}
+                size={128}
+                bgColor="#fff"
+                fgColor="#111827"
+                level="M"
+                includeMargin={false}
+              />
+              <div className="text-xs text-gray-400 mt-2">Scan to view or register for this event</div>
+            </div>
             {/* Show attendees */}
             <div className="mt-4">
               <div className="font-semibold text-xs text-gray-700 mb-1">Attendees:</div>
@@ -773,9 +856,15 @@ function EventPage({ user }) {
                       {att.avatar_url ? (
                         <img src={att.avatar_url} alt={att.name} className="w-5 h-5 rounded-full object-cover border border-gray-200" />
                       ) : (
-                        <div className="w-5 h-5 rounded-full flex items-center justify-center bg-primary/10 border border-gray-200 text-[10px] font-bold text-primary">
-                          {(att.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}
-                        </div>
+                        (() => {
+                          const initials = (att.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
+                          const { pastelBg, pastelText } = getPastelColors(att.id || att.name || 'U');
+                          return (
+                            <div style={{ background: pastelBg }} className="w-5 h-5 rounded-full flex items-center justify-center border border-gray-200 text-[10px] font-bold">
+                              <span style={{ color: pastelText }}>{initials}</span>
+                            </div>
+                          );
+                        })()
                       )}
                       <span className="text-xs text-gray-700">{att.name}</span>
                     </div>
@@ -910,7 +999,12 @@ function FriendsPage({ openChatWithUser, user }) {
       <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Friends</h2>
       <div className="flex gap-2 mb-6 border-b border-gray-200 justify-center">
         <button onClick={() => setTab('friends')} className={`px-4 py-2 text-xs font-semibold rounded-t ${tab === 'friends' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700'} transition-colors`}>My Friends</button>
-        <button onClick={() => setTab('requests')} className={`px-4 py-2 text-xs font-semibold rounded-t ${tab === 'requests' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700'} transition-colors`}>Requests</button>
+        <button onClick={() => setTab('requests')} className={`px-4 py-2 text-xs font-semibold rounded-t ${tab === 'requests' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700'} transition-colors relative`}>
+          Requests
+          {requests.length > 0 && (
+            <span className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full text-[10px] px-1.5 py-0.5 font-bold shadow">{requests.length}</span>
+          )}
+        </button>
       </div>
       {tab === 'friends' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -922,16 +1016,22 @@ function FriendsPage({ openChatWithUser, user }) {
                 {friend.avatar_url ? (
                   <img src={friend.avatar_url} alt={friend.name} className="w-12 h-12 min-w-12 min-h-12 rounded-full object-cover bg-primary/10 border border-gray-100" />
                 ) : (
-                  <div className="w-12 h-12 min-w-12 min-h-12 rounded-full flex items-center justify-center bg-primary/10 border border-gray-100">
-                    <span className="text-base font-bold text-primary">{(friend.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}</span>
-                  </div>
+                  (() => {
+                    const initials = (friend.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
+                    const { pastelBg, pastelText } = getPastelColors(friend.id || friend.name || 'U');
+                    return (
+                      <div style={{ background: pastelBg }} className="w-12 h-12 min-w-12 min-h-12 rounded-full flex items-center justify-center border border-gray-100">
+                        <span style={{ color: pastelText }} className="text-base font-bold">{initials}</span>
+                      </div>
+                    );
+                  })()
                 )}
                 <div className="flex-1">
                   <div className="font-semibold text-gray-900">{friend.name}</div>
                   <div className="text-xs text-gray-500">@{friend.username}</div>
                 </div>
                 <button
-                  className="bg-primary text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-primary/80 transition-colors"
+                  className="text-primary px-3 py-2 rounded-lg text-xs font-semibold border border-primary hover:bg-primary/10 transition-colors"
                   onClick={() => openChatWithUser(friend)}
                 >
                   Send Message
@@ -951,9 +1051,15 @@ function FriendsPage({ openChatWithUser, user }) {
                 {req.avatar_url ? (
                   <img src={req.avatar_url} alt={req.name} className="w-12 h-12 min-w-12 min-h-12 rounded-full object-cover bg-primary/10 border border-gray-100" />
                 ) : (
-                  <div className="w-12 h-12 min-w-12 min-h-12 rounded-full flex items-center justify-center bg-primary/10 border border-gray-100">
-                    <span className="text-base font-bold text-primary">{(req.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}</span>
-                  </div>
+                  (() => {
+                    const initials = (req.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
+                    const { pastelBg, pastelText } = getPastelColors(req.id || req.name || 'U');
+                    return (
+                      <div style={{ background: pastelBg }} className="w-12 h-12 min-w-12 min-h-12 rounded-full flex items-center justify-center border border-gray-100">
+                        <span style={{ color: pastelText }} className="text-base font-bold">{initials}</span>
+                      </div>
+                    );
+                  })()
                 )}
                 <div className="flex-1">
                   <div className="font-semibold text-gray-900">{req.name}</div>
@@ -985,6 +1091,25 @@ const Dashboard = () => {
   const [selectedChatUser, setSelectedChatUser] = useState(null);
   // Central user state
   const [user, setUser] = useState(null);
+
+  // Auto sign-out after 15 minutes of inactivity
+  useEffect(() => {
+    let timeout;
+    const resetTimer = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(async () => {
+        await signOut();
+        navigate('/signin');
+      }, 15 * 60 * 1000); // 15 minutes
+    };
+    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart'];
+    events.forEach(e => window.addEventListener(e, resetTimer));
+    resetTimer();
+    return () => {
+      clearTimeout(timeout);
+      events.forEach(e => window.removeEventListener(e, resetTimer));
+    };
+  }, [navigate]);
 
   // Fetch user profile on mount
   useEffect(() => {
@@ -1020,11 +1145,12 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen flex bg-gray-50">
       {/* Sidebar */}
-      <aside className="w-52 bg-white border-r border-gray-200 flex flex-col justify-between h-screen sticky top-0 left-0 z-30 overflow-hidden">
+      <aside className="w-52 bg-gray-50 border-r border-gray-200 flex flex-col justify-between h-screen sticky top-0 left-0 z-30 overflow-hidden">
         <div>
           {/* Logo */}
-          <div className="flex items-center justify-center py-6 px-4">
-            <span className="text-2xl font-extrabold text-primary tracking-tight">UniChat</span>
+          <div className="flex items-center justify-center py-6 px-4 gap-2">
+            <img src="/u_icon.svg" alt="U Icon" className="w-8 h-8" />
+            <span className="text-2xl font-extrabold text-zinc-800 tracking-tight">UniChat</span>
           </div>
           <div className="border-b border-gray-200 mx-4 mb-2" />
           {/* Profile Section */}
@@ -1033,9 +1159,15 @@ const Dashboard = () => {
             {user && user.avatar_url ? (
               <img src={user.avatar_url} alt={user.name} className="w-12 h-12 min-w-12 min-h-12 rounded-full object-cover bg-primary/10 border border-gray-100" />
             ) : user ? (
-              <div className="w-12 h-12 min-w-12 min-h-12 rounded-full flex items-center justify-center bg-primary/10">
-                <span className="text-base font-bold text-primary">{(user.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}</span>
-              </div>
+              (() => {
+                const initials = (user.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
+                const { pastelBg, pastelText } = getPastelColors(user.id || user.name || 'U');
+                return (
+                  <div style={{ background: pastelBg }} className="w-12 h-12 min-w-12 min-h-12 rounded-full flex items-center justify-center border border-gray-100">
+                    <span style={{ color: pastelText }} className="text-base font-bold">{initials}</span>
+                  </div>
+                );
+              })()
             ) : (
               <div className="w-12 h-12 min-w-12 min-h-12 rounded-full flex items-center justify-center bg-primary/10 animate-pulse" />
             )}
@@ -1052,7 +1184,9 @@ const Dashboard = () => {
                 onClick={() => handleSidebarClick(item.key)}
                 className={`group relative flex items-center gap-3 px-4 py-3 hover:bg-primary/10 transition rounded-lg mx-2 w-full text-left z-10 overflow-hidden ${activeSection === item.key ? 'bg-primary/10' : ''}`}
               >
-                <item.icon className={`h-6 w-6 transition-colors ${activeSection === item.key ? 'text-primary' : 'text-gray-500'} group-hover:text-primary`} />
+                {React.createElement(activeSection === item.key ? item.solidIcon : item.icon, {
+                  className: `h-6 w-6 transition-colors ${activeSection === item.key ? 'text-primary' : 'text-gray-500'} group-hover:text-primary`
+                })}
                 <span className={`hidden md:inline text-sm font-medium group-hover:block transition group-hover:text-primary ${activeSection === item.key ? 'text-primary' : 'text-gray-900'}`}>{item.name}</span>
               </button>
             ))}
@@ -1067,7 +1201,9 @@ const Dashboard = () => {
               onClick={() => handleSidebarClick(item.key)}
               className="group relative flex items-center gap-3 px-4 py-3 hover:bg-primary/10 transition rounded-lg mx-2 w-full text-left z-10 overflow-hidden"
             >
-              <item.icon className={`h-6 w-6 transition-colors ${activeSection === item.key ? 'text-primary' : 'text-gray-500'} group-hover:text-primary`} />
+              {React.createElement(activeSection === item.key ? item.solidIcon : item.icon, {
+                className: `h-6 w-6 transition-colors ${activeSection === item.key ? 'text-primary' : 'text-gray-500'} group-hover:text-primary`
+              })}
               <span className={`hidden md:inline text-sm font-medium group-hover:block transition group-hover:text-primary ${activeSection === item.key ? 'text-primary' : 'text-gray-900'}`}>{item.name}</span>
             </button>
           ))}
