@@ -341,41 +341,82 @@ const Chat = ({ selectedUser, user }) => {
             />
             {/* User search results */}
             <div className="mt-4">
-              {userSearch && userResults.length === 0 && (
-                <div className="text-gray-400 text-sm text-center">No users found.</div>
+              {userSearch ? (
+                userResults.length === 0 ? (
+                  <div className="text-gray-400 text-sm text-center">No users found.</div>
+                ) : (
+                  userResults.map(u => (
+                    <div
+                      key={u.id}
+                      className="flex items-center gap-3 px-2 py-2 hover:bg-primary/10 rounded cursor-pointer"
+                      onClick={() => {
+                        setChatUser(u);
+                        setModalOpen(false);
+                      }}
+                    >
+                      <div className="relative">
+                        {u.avatar_url ? (
+                          <img src={u.avatar_url} alt={u.name} className="w-8 h-8 rounded-full object-cover bg-primary/10 border border-gray-100" />
+                        ) : (
+                          (() => {
+                            const initials = (u.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
+                            const { pastelBg, pastelText } = getPastelColors(u.id || u.name || 'U');
+                            return (
+                              <div style={{ background: pastelBg }} className="w-8 h-8 rounded-full flex items-center justify-center border border-gray-100">
+                                <span style={{ color: pastelText }} className="text-xs font-bold">{initials}</span>
+                              </div>
+                            );
+                          })()
+                        )}
+                        <span className={`absolute bottom-0 right-0 block w-2.5 h-2.5 rounded-full border-2 border-white ${isUserOnline(u.last_seen) ? 'bg-green-500' : 'bg-red-500'}`} title={isUserOnline(u.last_seen) ? 'Online' : 'Offline'} />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-gray-900">{u.name}</span>
+                        <span className="text-xs text-gray-500">@{u.username}</span>
+                        <span className="text-xs text-gray-400">{u.email}</span>
+                      </div>
+                    </div>
+                  ))
+                )
+              ) : (
+                conversations.length === 0 ? (
+                  <div className="text-gray-400 text-sm text-center">No recent chats.</div>
+                ) : (
+                  conversations.map(c => {
+                    const u = c.user;
+                    return (
+                      <div
+                        key={u.id}
+                        className="flex items-center gap-3 px-2 py-2 hover:bg-primary/10 rounded cursor-pointer"
+                        onClick={() => {
+                          setChatUser(u);
+                          setModalOpen(false);
+                        }}
+                      >
+                        <div className="relative">
+                          {u.avatar_url ? (
+                            <img src={u.avatar_url} alt={u.name} className="w-8 h-8 rounded-full object-cover bg-primary/10 border border-gray-100" />
+                          ) : (
+                            (() => {
+                              const initials = (u.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
+                              const { pastelBg, pastelText } = getPastelColors(u.id || u.name || 'U');
+                              return (
+                                <div style={{ background: pastelBg }} className="w-8 h-8 rounded-full flex items-center justify-center border border-gray-100">
+                                  <span style={{ color: pastelText }} className="text-xs font-bold">{initials}</span>
+                                </div>
+                              );
+                            })()
+                          )}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-gray-900">{u.name}</span>
+                          <span className="text-xs text-gray-500">@{u.username}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )
               )}
-              {userResults.map(u => (
-                <div
-                  key={u.id}
-                  className="flex items-center gap-3 px-2 py-2 hover:bg-primary/10 rounded cursor-pointer"
-                  onClick={() => {
-                    setChatUser(u);
-                    setModalOpen(false);
-                  }}
-                >
-                  <div className="relative">
-                    {u.avatar_url ? (
-                      <img src={u.avatar_url} alt={u.name} className="w-8 h-8 rounded-full object-cover bg-primary/10 border border-gray-100" />
-                    ) : (
-                      (() => {
-                        const initials = (u.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase();
-                        const { pastelBg, pastelText } = getPastelColors(u.id || u.name || 'U');
-                        return (
-                          <div style={{ background: pastelBg }} className="w-8 h-8 rounded-full flex items-center justify-center border border-gray-100">
-                            <span style={{ color: pastelText }} className="text-xs font-bold">{initials}</span>
-                          </div>
-                        );
-                      })()
-                    )}
-                    <span className={`absolute bottom-0 right-0 block w-2.5 h-2.5 rounded-full border-2 border-white ${isUserOnline(u.last_seen) ? 'bg-green-500' : 'bg-red-500'}`} title={isUserOnline(u.last_seen) ? 'Online' : 'Offline'} />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="font-medium text-gray-900">{u.name}</span>
-                    <span className="text-xs text-gray-500">@{u.username}</span>
-                    <span className="text-xs text-gray-400">{u.email}</span>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>
