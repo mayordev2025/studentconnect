@@ -114,7 +114,7 @@ const SignUp = () => {
       if (upsertError) console.error('Profile upsert error:', upsertError);
     }
     setLoading(false);
-    navigate('/signin');
+    navigate('/signin', { state: { showVerifyAlert: true } });
   };
 
   return (

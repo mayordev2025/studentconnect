@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
+import { resetPassword } from './supabaseClient';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle forgot password logic here
+    setError('');
+    setLoading(true);
+    const { error } = await resetPassword(email);
+    setLoading(false);
+    if (error) {
+      setError(error.message || 'Failed to send reset link.');
+      return;
+    }
     setSubmitted(true);
   };
 
@@ -30,9 +40,11 @@ const ForgotPassword = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-primary text-base bg-white"
                   required
+                  disabled={loading}
                 />
               </div>
-              <button type="submit" className="w-full bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/80 text-base font-semibold transition-colors duration-200 mb-4">Send Reset Link</button>
+              {error && <div className="text-red-600 text-xs mb-2 w-full text-left">{error}</div>}
+              <button type="submit" className="w-full bg-primary text-white px-4 py-2 rounded-lg shadow hover:bg-primary/80 text-base font-semibold transition-colors duration-200 mb-4" disabled={loading}>{loading ? 'Sending...' : 'Send Reset Link'}</button>
             </>
           )}
           <div className="text-center text-xs w-full">
