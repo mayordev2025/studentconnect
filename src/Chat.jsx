@@ -214,11 +214,21 @@ const Chat = ({ selectedUser, user }) => {
     };
   }, [user?.id, chatUser?.id]);
 
-  // When opening a chat, mark as read
+  // When opening a chat, mark as read in DB and state
   useEffect(() => {
     if (chatUser && unreadMap[chatUser.id]) {
+      // Mark as read in state
       setUnreadMap(prev => ({ ...prev, [chatUser.id]: false }));
       setConversations(prev => prev.map(c => c.user.id === chatUser.id ? { ...c, unread: false } : c));
+      // Mark as read in the database
+      if (user && chatUser.id !== user.id) {
+        supabase
+          .from('messages')
+          .update({ read_at: new Date().toISOString() })
+          .eq('receiver_id', user.id)
+          .eq('sender_id', chatUser.id)
+          .is('read_at', null);
+      }
     }
   }, [chatUser]);
 
@@ -368,7 +378,6 @@ const Chat = ({ selectedUser, user }) => {
                             );
                           })()
                         )}
-                        <span className={`absolute bottom-0 right-0 block w-2.5 h-2.5 rounded-full border-2 border-white ${isUserOnline(u.last_seen) ? 'bg-green-500' : 'bg-red-500'}`} title={isUserOnline(u.last_seen) ? 'Online' : 'Offline'} />
                       </div>
                       <div className="flex flex-col">
                         <span className="font-medium text-gray-900">{u.name}</span>
@@ -470,7 +479,6 @@ const Chat = ({ selectedUser, user }) => {
                       );
                     })()
                   )}
-                  <span className={`absolute bottom-0 right-0 block w-3 h-3 rounded-full border-2 border-white ${isUserOnline(c.user.last_seen) ? 'bg-green-500' : 'bg-red-500'}`} title={isUserOnline(c.user.last_seen) ? 'Online' : 'Offline'} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center">
@@ -479,7 +487,6 @@ const Chat = ({ selectedUser, user }) => {
                   </div>
                   <span className="block text-xs text-gray-500 truncate">{c.lastMessage.content}</span>
                 </div>
-                {c.unread === true && <span className="ml-2 w-2 h-2 rounded-full bg-primary block" title="New message" />}
               </div>
             ))}
         </div>
@@ -514,7 +521,6 @@ const Chat = ({ selectedUser, user }) => {
                       );
                     })()
                   )}
-                  <span className={`absolute bottom-0 right-0 block w-3 h-3 rounded-full border-2 border-white ${isUserOnline(chatUser?.last_seen) ? 'bg-green-500' : 'bg-red-500'}`} title={isUserOnline(chatUser?.last_seen) ? 'Online' : 'Offline'} />
                 </div>
               </button>
               <span className="font-semibold text-gray-900 text-base">{chatUser?.name || 'Select a chat'}</span>
